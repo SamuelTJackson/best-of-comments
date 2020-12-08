@@ -16,8 +16,10 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"os"
 
 	homedir "github.com/mitchellh/go-homedir"
@@ -39,6 +41,34 @@ to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return CheckRequiredFlags(cmd.Flags())
+
+	},
+}
+func CheckRequiredFlags(flags *pflag.FlagSet) error {
+	requiredError := false
+	flagName := ""
+
+	flags.VisitAll(func(flag *pflag.Flag) {
+		requiredAnnotation := flag.Annotations[cobra.BashCompOneRequiredFlag]
+		if len(requiredAnnotation) == 0 {
+			return
+		}
+
+		flagRequired := requiredAnnotation[0] == "true"
+
+		if flagRequired && !flag.Changed {
+			requiredError = true
+			flagName = flag.Name
+		}
+	})
+
+	if requiredError {
+		return errors.New("Required flag `" + flagName + "` has not been set")
+	}
+
+	return nil
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

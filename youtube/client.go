@@ -27,7 +27,11 @@ func getOauthConfig() (*oauth2.Config, error)  {
 	return google.ConfigFromJSON(b, youtube.YoutubeReadonlyScope)
 }
 
-func GetClient(config *oauth2.Config) (*Client, error){
+func GetClient() (*Client, error){
+	config, err := getOauthConfig()
+	if err != nil {
+		return nil, err
+	}
 	cacheFile, err := tokenCacheFile()
 	if err != nil {
 		return nil, err
@@ -42,15 +46,11 @@ func GetClient(config *oauth2.Config) (*Client, error){
 			return nil, err
 		}
 	}
-	b, err := ioutil.ReadFile("client_secret.json")
+	srv, err := youtube.NewService(context.Background(), option.WithTokenSource(config.TokenSource(context.TODO(),token)))
 	if err != nil {
 		return nil, err
 	}
-	srv, err := youtube.NewService(context.Background(), option.WithCredentialsJSON(b))
-	if err != nil {
-		return nil, err
-	}
-	return &Client{config: config, service: srv}, nil
+	return &Client{ service: srv}, nil
 }
 // tokenCacheFile generates credential file path/filename.
 // It returns the generated credential path/filename.
@@ -77,12 +77,20 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 	return t, err
 }
 func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
+	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	fmt.Printf("Go to the following link in your browser then type the "+
+		"authorization code: \n%v\n", authURL)
+
 	var code string
 	if _, err := fmt.Scan(&code); err != nil {
 		return nil, err
 	}
 
-	return config.Exchange(context.TODO(), code)
+	tok, err := config.Exchange(oauth2.NoContext, code)
+	if err != nil {
+		return nil, err
+	}
+	return tok, nil
 }
 func saveToken(file string, token *oauth2.Token) error{
 	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
